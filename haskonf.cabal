@@ -14,7 +14,7 @@ Library
     Build-Depends: base,
                    time
 
-  Hs-Source-Dirs:     src
+  Hs-Source-Dirs:       .
   GHC-Options:      -Wall
   Exposed-Modules: Haskonf.Runner
                    Haskonf.Builder
