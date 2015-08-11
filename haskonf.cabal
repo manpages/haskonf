@@ -1,0 +1,20 @@
+Name:               haskonf
+Version:            0.0.1
+License:            BSD2
+License-File:       LICENSE
+Author:             Jonn Mostovoy
+Synopsis:           Reflective configuration library
+Description:
+            A library to configure Haskell applications with Haskell. Akin to XMonad and Hakyll.
+
+Cabal-Version:  >=1.10
+Build-Type:     Simple
+
+Library
+    Build-Depends: base,
+                   time
+
+  Hs-Source-Dirs:     src
+  GHC-Options:      -Wall
+  Exposed-Modules: Haskonf.Runner
+                   Haskonf.Builder
