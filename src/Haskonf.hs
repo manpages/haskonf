@@ -1,3 +1,7 @@
+-- |
+-- Module : Haskonf
+-- Haskonf, a small library to configure Haskell applications in Haskell.
+-- TODO: Make use of monad transformers to support non-IO-() signatures.
 module Haskonf ( build, buildForce, rebuild, appDir, binName, runFrom ) where
 
 import           Control.Exception.Extensible (SomeException (..), bracket, try)
@@ -19,23 +23,45 @@ import           System.Posix.Signals         (Handler (..), installHandler,
                                                openEndedPipe, sigCHLD)
 import           System.Process               (runProcess, waitForProcess)
 
+-- |
+-- Primitive IoC function.
+-- Takes three arguments — name of currently executed program,
+-- path to the directory, containing target program and target
+-- program's name. If current program's name and target program's
+-- name is the same, does nothing (returns pure ()), else —
+-- runs executeFile accordingly.
+-- Fourth argument is arglist passed to top program.
 runFrom :: String -> FilePath -> String -> [String] -> IO ()
 runFrom x _ z _
   | x == z = pure ()
 runFrom _ y z a = executeFile (y </> z) False a Nothing
 
+-- |
+-- Given application name, return path to application data
+-- directory.
 appDir :: String -> IO FilePath
 appDir = getAppUserDataDirectory
 
+-- |
+-- Given application name, build underlying application, if
+-- something was changed.
 build :: String -> IO Bool
 build pname = buildDo pname Nothing False
 
+-- |
+-- Given application name, forcefully rebuild underlying application.
 buildForce :: String -> IO Bool
 buildForce = rebuild
 
+-- |
+-- Alias for @buildForce@.
 rebuild :: String -> IO Bool
 rebuild pname = buildDo pname Nothing True
 
+-- |
+-- The most important function of haskonf.
+-- Takes application name, ghc flags, force flag and returns status
+-- of (re-)building of underlying application.
 buildDo :: String -> Maybe [String] -> Bool -> IO Bool
 buildDo pname Nothing   force = (flip . buildDo) pname force $ Just $ defaultFlags pname
 buildDo pname (Just fs) force = do
@@ -67,13 +93,20 @@ buildDo pname (Just fs) force = do
       ds <- filterM doesDirectoryExist cs
       concat . ((cs \\ ds):) <$> mapM allFiles ds
 
+-- |
+-- Given application name, returns underlying application's binary name.
 binName :: String -> String
 binName pname = pname ++ "-" ++ arch ++ "-" ++ os
 
+-- |
+-- Given application name, returns default ghc flags.
 defaultFlags :: String -> [String]
 defaultFlags pname =  ["--make", pname ++ ".hs", "-i", "-ilib", "-fforce-recomp",
                        "-main-is", "main", "-v0", "-o", binName pname]
 
+-- |
+-- A pair of functions to ignore SIGPIPE to avoid termination when a pipe is full,
+-- and SIGCHLD to avoid zombie processes, and clean up any extant zombie processes.
 installSignalHandlers :: IO ()
 installSignalHandlers = do
     _ <- installHandler openEndedPipe Ignore Nothing
@@ -84,6 +117,9 @@ installSignalHandlers = do
         when (isJust x) more
     return ()
 
+-- |
+-- A pair of functions to ignore SIGPIPE to avoid termination when a pipe is full,
+-- and SIGCHLD to avoid zombie processes, and clean up any extant zombie processes.
 uninstallSignalHandlers :: IO ()
 uninstallSignalHandlers = do
     _ <- installHandler openEndedPipe Default Nothing
