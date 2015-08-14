@@ -12,9 +12,9 @@ Build-Type:     Simple
 
 Library
     Build-Depends: base,
-                   time
+                   time,
+                   directory
 
-  Hs-Source-Dirs:       .
+  Hs-Source-Dirs:     src
   GHC-Options:      -Wall
-  Exposed-Modules: Haskonf.Runner
-                   Haskonf.Builder
+  Exposed-Modules: Haskonf
