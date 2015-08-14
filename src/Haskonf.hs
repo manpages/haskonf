@@ -1,9 +1,6 @@
 module Haskonf ( build, buildForce, rebuild ) where
 
-import           Control.Exception.Base       (bracket)
-import           Control.Exception.Extensible (SomeException (..), bracket,
-                                               finally, fromException, throw,
-                                               try)
+import           Control.Exception.Extensible (SomeException (..), bracket, try)
 import qualified Control.Exception.Extensible as E
 import           Control.Monad                (filterM, when)
 import           Control.Monad.Fix            (fix)
@@ -17,8 +14,7 @@ import           System.Exit                  (ExitCode (..))
 import           System.FilePath              (takeExtension, (</>))
 import           System.Info                  (arch, os)
 import           System.IO                    (IOMode (..), hClose, openFile)
-import           System.Posix.Process         (createSession, executeFile,
-                                               forkProcess, getAnyProcessStatus)
+import           System.Posix.Process         (getAnyProcessStatus)
 import           System.Posix.Signals         (Handler (..), installHandler,
                                                openEndedPipe, sigCHLD)
 import           System.Process               (runProcess, waitForProcess)
@@ -33,7 +29,7 @@ rebuild :: String -> IO Bool
 rebuild pname = buildDo pname Nothing True
 
 buildDo :: String -> Maybe [String] -> Bool -> IO Bool
-buildDo pname Nothing   force = (flip . buildDo) pname force defaultFlags $ pname $ pname ++ "-" ++ arch ++ "-" os
+buildDo pname Nothing   force = (flip . buildDo) pname force $ Just $ defaultFlags pname
 buildDo pname (Just fs) force = do
   dir <- getAppUserDataDirectory pname
   let binn = getBinName pname
@@ -45,7 +41,7 @@ buildDo pname (Just fs) force = do
   libTs <- mapM getModTime . Prelude.filter isSource =<< allFiles lib
   srcT <- getModTime src
   binT <- getModTime binf
-  if force || any (binT <) (src : libTs)
+  if force || any (binT <) (srcT : libTs)
     then do
       uninstallSignalHandlers
       status <- bracket (openFile err WriteMode) hClose $ \h -> waitForProcess =<< runProcess "ghc" fs (Just dir)
@@ -67,14 +63,14 @@ getBinName :: String -> String
 getBinName pname = pname ++ "-" ++ arch ++ "-" ++ os
 
 defaultFlags :: String -> [String]
-defaultFlags pname o =  ["--make", pname ++ ".hs", "-i", "-ilib", "-fforce-recomp",
-                         "-main-is", "main", "-v0", "-o", o]
+defaultFlags pname =  ["--make", pname ++ ".hs", "-i", "-ilib", "-fforce-recomp",
+                       "-main-is", "main", "-v0", "-o", getBinName pname]
 
 installSignalHandlers :: IO ()
 installSignalHandlers = do
-    installHandler openEndedPipe Ignore Nothing
-    installHandler sigCHLD Ignore Nothing
-    (try :: IO a -> IO (Either SomeException a))
+    _ <- installHandler openEndedPipe Ignore Nothing
+    _ <- installHandler sigCHLD Ignore Nothing
+    _ <- (try :: IO a -> IO (Either SomeException a))
       $ fix $ \more -> do
         x <- getAnyProcessStatus False False
         when (isJust x) more
@@ -82,6 +78,6 @@ installSignalHandlers = do
 
 uninstallSignalHandlers :: IO ()
 uninstallSignalHandlers = do
-    installHandler openEndedPipe Default Nothing
-    installHandler sigCHLD Default Nothing
+    _ <- installHandler openEndedPipe Default Nothing
+    _ <- installHandler sigCHLD Default Nothing
     return ()
