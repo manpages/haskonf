@@ -24,6 +24,7 @@ Library
   Exposed-Modules: Haskonf
 
 Executable usetest
+  Build-Depends: base
   Hs-source-dirs:  test
   GHC-Options:    -Wall
   Main-is:      Main.hs
