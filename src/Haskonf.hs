@@ -1,4 +1,4 @@
-module Haskonf ( build, buildForce, rebuild ) where
+module Haskonf ( build, buildForce, rebuild, appDir, binName, runFrom ) where
 
 import           Control.Exception.Extensible (SomeException (..), bracket, try)
 import qualified Control.Exception.Extensible as E
@@ -14,10 +14,18 @@ import           System.Exit                  (ExitCode (..))
 import           System.FilePath              (takeExtension, (</>))
 import           System.Info                  (arch, os)
 import           System.IO                    (IOMode (..), hClose, openFile)
-import           System.Posix.Process         (getAnyProcessStatus)
+import           System.Posix.Process         (executeFile, getAnyProcessStatus)
 import           System.Posix.Signals         (Handler (..), installHandler,
                                                openEndedPipe, sigCHLD)
 import           System.Process               (runProcess, waitForProcess)
+
+runFrom :: String -> FilePath -> String -> [String] -> IO ()
+runFrom x _ z _
+  | x == z = pure ()
+runFrom _ y z a = executeFile (y </> z) False a Nothing
+
+appDir :: String -> IO FilePath
+appDir = getAppUserDataDirectory
 
 build :: String -> IO Bool
 build pname = buildDo pname Nothing False
@@ -32,7 +40,7 @@ buildDo :: String -> Maybe [String] -> Bool -> IO Bool
 buildDo pname Nothing   force = (flip . buildDo) pname force $ Just $ defaultFlags pname
 buildDo pname (Just fs) force = do
   dir <- getAppUserDataDirectory pname
-  let binn = getBinName pname
+  let binn = binName pname
       binf = dir </> binn
       base = dir </> pname
       err  = base ++ ".errors"
@@ -59,12 +67,12 @@ buildDo pname (Just fs) force = do
       ds <- filterM doesDirectoryExist cs
       concat . ((cs \\ ds):) <$> mapM allFiles ds
 
-getBinName :: String -> String
-getBinName pname = pname ++ "-" ++ arch ++ "-" ++ os
+binName :: String -> String
+binName pname = pname ++ "-" ++ arch ++ "-" ++ os
 
 defaultFlags :: String -> [String]
 defaultFlags pname =  ["--make", pname ++ ".hs", "-i", "-ilib", "-fforce-recomp",
-                       "-main-is", "main", "-v0", "-o", getBinName pname]
+                       "-main-is", "main", "-v0", "-o", binName pname]
 
 installSignalHandlers :: IO ()
 installSignalHandlers = do
