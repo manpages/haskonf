@@ -1,10 +1,10 @@
 { mkDerivation, base, directory, extensible-exceptions, filepath
-, process, stdenv, time, unix
+, process, stdenv, time, unix, fetchurl, src ? ./.
 }:
 mkDerivation {
   pname = "haskonf";
   version = "0.0.1";
-  src = ./.;
+  src = src;
   isLibrary = true;
   isExecutable = true;
   buildDepends = [
