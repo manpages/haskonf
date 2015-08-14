@@ -11,10 +11,19 @@ Cabal-Version:  >=1.10
 Build-Type:     Simple
 
 Library
-    Build-Depends: base,
-                   time,
-                   directory
+  Build-Depends: base,
+                 time,
+                 directory,
+                 unix,
+                 filepath,
+                 process,
+                 extensible-exceptions
 
-  Hs-Source-Dirs:     src
-  GHC-Options:      -Wall
+  Hs-Source-Dirs:      src
+  GHC-Options:       -Wall
   Exposed-Modules: Haskonf
+
+Executable usetest
+  Hs-source-dirs:  test
+  GHC-Options:    -Wall
+  Main-is:      Main.hs
