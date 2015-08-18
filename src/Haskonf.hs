@@ -5,6 +5,9 @@
 module Haskonf ( build,
                  buildForce,
                  rebuild,
+                 buildDo,
+                 defaultFlags,
+                 defaultFlagsVerbose,
                  appDir,
                  binName,
                  runFrom,
@@ -135,6 +138,12 @@ binName pname = pname ++ "-" ++ arch ++ "-" ++ os
 defaultFlags :: String -> [String]
 defaultFlags pname =  ["--make", pname ++ ".hs", "-i", "-ilib", "-fforce-recomp",
                        "-main-is", "main", "-v0", "-o", binName pname]
+
+-- |
+-- Given application name, returns default ghc flags with verbose output.
+defaultFlagsVerbose :: String -> [String]
+defaultFlagsVerbose pname =  ["--make", pname ++ ".hs", "-i", "-ilib", "-fforce-recomp",
+                              "-main-is", "main", "-v", "-o", binName pname]
 
 -- |
 -- A pair of functions to ignore SIGPIPE to avoid termination when a pipe is full,
