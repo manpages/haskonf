@@ -10,6 +10,8 @@ Description:
 Cabal-Version:  >=1.10
 Build-Type:     Simple
 
+Data-Files: haskonf-usage.hs
+
 Library
   Build-Depends: base,
                  time,
@@ -17,15 +19,19 @@ Library
                  unix,
                  filepath,
                  process,
+                 FindBin,
                  extensible-exceptions
 
   Hs-Source-Dirs:      src
   GHC-Options:       -Wall
   Exposed-Modules: Haskonf
+  Other-Modules: Paths_haskonf
 
 Executable usetest
   Build-Depends: base,
-                 haskonf
+                 haskonf,
+                 FindBin
   Hs-source-dirs:  test
   GHC-Options:    -Wall
   Main-is:      Main.hs
+  Other-Modules: Paths_haskonf

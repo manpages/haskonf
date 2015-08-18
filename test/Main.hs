@@ -1,6 +1,9 @@
 module Main (main) where
 
-import           Haskonf            (appDir, binName, build, rebuild, runFrom)
+import           Control.Monad      (unless)
+import           Haskonf            (appDir, binName, build, copyReal,
+                                     doesConfigExist, rebuild, runFrom)
+import           Paths_haskonf
 import           System.Environment (getArgs, getProgName)
 
 pname :: String
@@ -8,6 +11,8 @@ pname = "haskonf-usage"
 
 main :: IO ()
 main = do
+  real <- getDataFileName "haskonf-usage.hs"
+  doesConfigExist pname >>= (flip unless) (copyReal pname real)
   args <- getArgs
   mainDo args
 

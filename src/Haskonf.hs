@@ -2,7 +2,15 @@
 -- Module : Haskonf
 -- Haskonf, a small library to configure Haskell applications in Haskell.
 -- TODO: Make use of monad transformers to support non-IO-() signatures.
-module Haskonf ( build, buildForce, rebuild, appDir, binName, runFrom ) where
+module Haskonf ( build,
+                 buildForce,
+                 rebuild,
+                 appDir,
+                 binName,
+                 runFrom,
+                 copyReal,
+                 copyConfig,
+                 doesConfigExist ) where
 
 import           Control.Exception.Extensible (SomeException (..), bracket, try)
 import qualified Control.Exception.Extensible as E
@@ -10,18 +18,42 @@ import           Control.Monad                (filterM, when)
 import           Control.Monad.Fix            (fix)
 import           Data.List                    ((\\))
 import           Data.Maybe                   (isJust)
-import           System.Directory             (doesDirectoryExist,
+import           System.Directory             (copyFile, doesDirectoryExist,
+                                               doesFileExist,
                                                getAppUserDataDirectory,
                                                getDirectoryContents,
                                                getModificationTime)
+import           System.Environment.FindBin   (getProgPath)
 import           System.Exit                  (ExitCode (..))
-import           System.FilePath              (takeExtension, (</>))
+import           System.FilePath              (takeDirectory, takeExtension,
+                                               (</>))
 import           System.Info                  (arch, os)
 import           System.IO                    (IOMode (..), hClose, openFile)
 import           System.Posix.Process         (executeFile, getAnyProcessStatus)
 import           System.Posix.Signals         (Handler (..), installHandler,
                                                openEndedPipe, sigCHLD)
 import           System.Process               (runProcess, waitForProcess)
+
+-- |
+-- Copies example file into app directory.
+copyReal :: String -> FilePath -> IO ()
+copyReal pname file = appDir pname >>= (copyFile file) . (flip (</>) $ pname ++ ".hs")
+
+-- |
+-- Copies config bundled with the application.
+copyConfig :: String -> IO ()
+copyConfig pname = do
+  selfPath <- getProgPath
+  let cfg = (takeDirectory selfPath) </> pname ++ ".hs"
+  copyReal pname cfg
+
+-- |
+-- Checks if configuration source exists in the application directory.
+doesConfigExist :: String -> IO Bool
+doesConfigExist pname = do
+  dir <- appDir pname
+  let cfg = dir </> pname ++ ".hs"
+  doesFileExist cfg
 
 -- |
 -- Primitive IoC function.
