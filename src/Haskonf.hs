@@ -1,7 +1,6 @@
 -- |
 -- Module : Haskonf
 -- Haskonf, a small library to configure Haskell applications in Haskell.
--- TODO: Make use of monad transformers to support non-IO-() signatures.
 module Haskonf ( build,
                  buildForce,
                  rebuild,
@@ -21,7 +20,9 @@ import           Control.Monad                (filterM, when)
 import           Control.Monad.Fix            (fix)
 import           Data.List                    ((\\))
 import           Data.Maybe                   (isJust)
-import           System.Directory             (copyFile, doesDirectoryExist,
+import           System.Directory             (copyFile,
+                                               createDirectoryIfMissing,
+                                               doesDirectoryExist,
                                                doesFileExist,
                                                getAppUserDataDirectory,
                                                getDirectoryContents,
@@ -40,23 +41,24 @@ import           System.Process               (runProcess, waitForProcess)
 -- |
 -- Copies example file into app directory.
 copyReal :: String -> FilePath -> IO ()
-copyReal pname file = appDir pname >>= (copyFile file) . (flip (</>) $ pname ++ ".hs")
+copyReal pname file =
+    appDir pname >>= (copyFile file) . (flip (</>) $ pname ++ ".hs")
 
 -- |
 -- Copies config bundled with the application.
 copyConfig :: String -> IO ()
 copyConfig pname = do
-  selfPath <- getProgPath
-  let cfg = (takeDirectory selfPath) </> pname ++ ".hs"
-  copyReal pname cfg
+    selfPath <- getProgPath
+    let cfg = (takeDirectory selfPath) </> pname ++ ".hs"
+    copyReal pname cfg
 
 -- |
 -- Checks if configuration source exists in the application directory.
 doesConfigExist :: String -> IO Bool
 doesConfigExist pname = do
-  dir <- appDir pname
-  let cfg = dir </> pname ++ ".hs"
-  doesFileExist cfg
+    dir <- appDir pname
+    let cfg = dir </> pname ++ ".hs"
+    doesFileExist cfg
 
 -- |
 -- Primitive IoC function.
@@ -75,7 +77,10 @@ runFrom _ y z a = executeFile (y </> z) False a Nothing
 -- Given application name, return path to application data
 -- directory.
 appDir :: String -> IO FilePath
-appDir = getAppUserDataDirectory
+appDir x = do
+    y <- getAppUserDataDirectory x
+    _ <- createDirectoryIfMissing True y
+    return y
 
 -- |
 -- Given application name, build underlying application, if
@@ -98,35 +103,54 @@ rebuild pname = buildDo pname Nothing True
 -- Takes application name, ghc flags, force flag and returns status
 -- of (re-)building of underlying application.
 buildDo :: String -> Maybe [String] -> Bool -> IO Bool
-buildDo pname Nothing   force = (flip . buildDo) pname force $ Just $ defaultFlags pname
+buildDo pname Nothing force =
+    (flip . buildDo) pname force $ Just $ defaultFlags pname
 buildDo pname (Just fs) force = do
-  dir <- getAppUserDataDirectory pname
-  let binn = binName pname
-      binf = dir </> binn
-      base = dir </> pname
-      err  = base ++ ".errors"
-      src  = base ++ ".hs"
-      lib  = dir </> "lib"
-  libTs <- mapM getModTime . Prelude.filter isSource =<< allFiles lib
-  srcT <- getModTime src
-  binT <- getModTime binf
-  if force || any (binT <) (srcT : libTs)
-    then do
-      uninstallSignalHandlers
-      status <- bracket (openFile err WriteMode) hClose $ \h -> waitForProcess =<< runProcess "ghc" fs (Just dir)
-                                                                Nothing Nothing Nothing (Just h)
-      installSignalHandlers
-      return (status == ExitSuccess)
-    else
-      return True
+    dir <- getAppUserDataDirectory pname
+    let binn = binName pname
+        binf = dir </> binn
+        base = dir </> pname
+        err = base ++ ".errors"
+        src = base ++ ".hs"
+        lib = dir </> "lib"
+    libTs <- mapM getModTime . Prelude.filter isSource =<< allFiles lib
+    srcT <- getModTime src
+    binT <- getModTime binf
+    if force || any (binT <) (srcT : libTs)
+        then do
+            uninstallSignalHandlers
+            status <-
+                bracket (openFile err WriteMode) hClose $
+                \h ->
+                     waitForProcess =<<
+                     runProcess
+                         "ghc"
+                         fs
+                         (Just dir)
+                         Nothing
+                         Nothing
+                         Nothing
+                         (Just h)
+            installSignalHandlers
+            return (status == ExitSuccess)
+        else return True
   where
-    getModTime f = E.catch (Just <$> getModificationTime f) (\(SomeException _) -> return Nothing)
-    isSource = flip elem [".hs",".lhs",".hsc"] . takeExtension
+    getModTime f =
+        E.catch
+            (Just <$> getModificationTime f)
+            (\(SomeException _) ->
+                  return Nothing)
+    isSource = flip elem [".hs", ".lhs", ".hsc"] . takeExtension
     allFiles t = do
-      let prep = map (t</>) . Prelude.filter (`notElem` [".",".."])
-      cs <- prep <$> E.catch (getDirectoryContents t) (\(SomeException _) -> return [])
-      ds <- filterM doesDirectoryExist cs
-      concat . ((cs \\ ds):) <$> mapM allFiles ds
+        let prep = map (t </>) . Prelude.filter (`notElem` [".", ".."])
+        cs <-
+            prep <$>
+            E.catch
+                (getDirectoryContents t)
+                (\(SomeException _) ->
+                      return [])
+        ds <- filterM doesDirectoryExist cs
+        concat . ((cs \\ ds) :) <$> mapM allFiles ds
 
 -- |
 -- Given application name, returns underlying application's binary name.
@@ -136,31 +160,53 @@ binName pname = pname ++ "-" ++ arch ++ "-" ++ os
 -- |
 -- Given application name, returns default ghc flags.
 defaultFlags :: String -> [String]
-defaultFlags pname =  ["--make", pname ++ ".hs", "-i", "-ilib", "-fforce-recomp",
-                       "-main-is", "main", "-v0", "-o", binName pname]
+defaultFlags pname =
+    [ "--make"
+    , pname ++ ".hs"
+    , "-i"
+    , "-ilib"
+    , "-fforce-recomp"
+    , "-main-is"
+    , "main"
+    , "-v0"
+    , "-o"
+    , binName pname]
 
 -- |
 -- Given application name, returns default ghc flags with verbose output.
 defaultFlagsVerbose :: String -> [String]
-defaultFlagsVerbose pname =  ["--make", pname ++ ".hs", "-i", "-ilib", "-fforce-recomp",
-                              "-main-is", "main", "-v", "-o", binName pname]
+defaultFlagsVerbose pname =
+    [ "--make"
+    , pname ++ ".hs"
+    , "-i"
+    , "-ilib"
+    , "-fforce-recomp"
+    , "-main-is"
+    , "main"
+    , "-v"
+    , "-o"
+    , binName pname]
 
 -- |
--- A pair of functions to ignore SIGPIPE to avoid termination when a pipe is full,
--- and SIGCHLD to avoid zombie processes, and clean up any extant zombie processes.
+-- A pair of functions to ignore SIGPIPE to avoid termination when a
+-- pipe is full, and SIGCHLD to avoid zombie processes, and clean up
+-- any extant zombie processes.
 installSignalHandlers :: IO ()
 installSignalHandlers = do
     _ <- installHandler openEndedPipe Ignore Nothing
     _ <- installHandler sigCHLD Ignore Nothing
-    _ <- (try :: IO a -> IO (Either SomeException a))
-      $ fix $ \more -> do
-        x <- getAnyProcessStatus False False
-        when (isJust x) more
+    _ <-
+        (try :: IO a -> IO (Either SomeException a)) $
+        fix $
+        \more -> do
+            x <- getAnyProcessStatus False False
+            when (isJust x) more
     return ()
 
 -- |
--- A pair of functions to ignore SIGPIPE to avoid termination when a pipe is full,
--- and SIGCHLD to avoid zombie processes, and clean up any extant zombie processes.
+-- A pair of functions to ignore SIGPIPE to avoid termination when a
+-- pipe is full, and SIGCHLD to avoid zombie processes, and clean up
+-- any extant zombie processes.
 uninstallSignalHandlers :: IO ()
 uninstallSignalHandlers = do
     _ <- installHandler openEndedPipe Default Nothing

@@ -26,12 +26,17 @@ Library
   GHC-Options:       -Wall
   Exposed-Modules: Haskonf
   Other-Modules: Paths_haskonf
+  Default-language: Haskell2010
 
-Executable usetest
-  Build-Depends: base,
+Test-suite spec
+  Type: exitcode-stdio-1.0
+  GHC-options: -Wall
+  Hs-source-dirs: test
+  Main-is: Spec.hs
+  Build-depends: base,
                  haskonf,
+                 hspec,
                  FindBin
-  Hs-source-dirs:  test
-  GHC-Options:    -Wall
-  Main-is:      Main.hs
-  Other-Modules: Paths_haskonf
+  Other-Modules: Paths_haskonf,
+                 Haskonf.HaskonfSpec
+  Default-language: Haskell2010
